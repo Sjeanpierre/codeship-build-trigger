@@ -33,17 +33,29 @@ func readConfig() (m buildConfig) {
 	return
 }
 
-func trigger_build(org *codeship.Organization, p project) {
+func findLatestSHA(p project, org *codeship.Organization) (string, error) {
+	opt := codeship.PerPage(50)
 	ctx := context.Background()
-	//list past builds, trigger last build
-	opt := codeship.PerPage(1)
 	builds, _, err := org.ListBuilds(ctx, p.UUID, opt)
 	if err != nil {
 		log.Fatalf("Could not list builds %s", err)
 	}
-	latestBuildSha := builds.Builds[0].CommitSha
-	fmt.Println(latestBuildSha)
-	//os.Exit(0)
+	for _, build := range builds.Builds {
+		if build.Ref == p.Branch && build.Status == "success" {
+			return build.CommitSha, nil
+		}
+	}
+	return "", fmt.Errorf("No prior builds to pull from for %s on branch %s", p.Name, p.Branch)
+}
+
+func trigger_build(org *codeship.Organization, p project) {
+	ctx := context.Background()
+	//list past builds, trigger last build
+	latestBuildSha, err := findLatestSHA(p, org)
+	if err != nil {
+		log.Printf("Encountered error triggering builf for repo %s, error %s", p.Name, err.Error())
+		return
+	}
 	success, resp, err := org.CreateBuild(ctx, p.UUID, p.Branch, latestBuildSha)
 	if err != nil {
 		log.Fatalf("Could not trigger build for %s\n response details:\n %s", p.Name, resp)
