@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	codeship "github.com/codeship/codeship-go"
+	"github.com/codeship/codeship-go"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -28,7 +28,7 @@ func readConfig() (m buildConfig) {
 	}
 	err = yaml.Unmarshal(data, &m)
 	if err != nil {
-		log.Fatal("could not unmarshall config file")
+		log.Fatal("could not unmarshall config file, Error",err)
 	}
 	return
 }
@@ -45,10 +45,10 @@ func findLatestSHA(p project, org *codeship.Organization) (string, error) {
 			return build.CommitSha, nil
 		}
 	}
-	return "", fmt.Errorf("No prior builds to pull from for %s on branch %s", p.Name, p.Branch)
+	return "", fmt.Errorf("no prior builds to pull from for %s on branch %s", p.Name, p.Branch)
 }
 
-func trigger_build(org *codeship.Organization, p project) {
+func triggerBuild(org *codeship.Organization, p project) {
 	ctx := context.Background()
 	//list past builds, trigger last build
 	latestBuildSha, err := findLatestSHA(p, org)
@@ -58,7 +58,7 @@ func trigger_build(org *codeship.Organization, p project) {
 	}
 	success, resp, err := org.CreateBuild(ctx, p.UUID, p.Branch, latestBuildSha)
 	if err != nil {
-		log.Fatalf("Could not trigger build for %s\n response details:\n %s", p.Name, resp)
+		log.Fatalf("Could not trigger build for %s\n response details:\n %+v, %s", p.Name, resp,err)
 	}
 	if success == true {
 		log.Printf("Build for %s successfully triggered", p.Name)
@@ -71,15 +71,15 @@ func main() {
 	auth := codeship.NewBasicAuth(os.Getenv("CODESHIP_USERNAME"), os.Getenv("CODESHIP_PASSWORD"))
 	client, err := codeship.New(auth)
 	if err != nil {
-		log.Fatalln("encountered issue authenticating")
+		log.Fatalln("encountered issue authenticating",err.Error())
 	}
 	org, err := client.Organization(ctx, config.OrgName)
 	if err != nil {
-		log.Fatalf("encountered issue selecting organization %s", config.OrgName)
+		log.Fatalf("encountered issue selecting organization %s, Error: %s", config.OrgName, err.Error())
 	}
 	println("ORG UUID =", org.UUID)
 	for _, project := range config.Projects {
 		log.Printf("Triggering build for %s", project.Name)
-		trigger_build(org, project)
+		triggerBuild(org, project)
 	}
 }
